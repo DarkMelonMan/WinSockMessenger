@@ -1,0 +1,8 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="MessengerGUI/MessengerGUI.vcxproj" />
+  <Project Path="NativeNet/NativeNet.vcxproj" Id="c63e2533-386b-4b81-94a3-1f7a12f06e26" />
+</Solution>
