@@ -15,7 +15,6 @@ static void NativeOnUserList(const std::vector<std::string>& users, void* contex
 static void NativeOnDisconnect(void* context);
 
 namespace MessengerGUI {
-
     public ref class ManagedClient {
     public:
         property String^ UserName;
@@ -26,27 +25,26 @@ namespace MessengerGUI {
 
         ManagedClient(String^ serverIp, int port) {
             std::string ip = msclr::interop::marshal_as<std::string>(serverIp);
-
             _handle = GCHandle::Alloc(this);
             void* context = GCHandle::ToIntPtr(_handle).ToPointer();
-
-            nativeClient_ = new Client(ip, port,
-                &NativeOnMessage,
-                &NativeOnUserList,
-                &NativeOnDisconnect,
-                context);
+            nativeClient_ = new Client(ip, port, &NativeOnMessage, &NativeOnUserList, &NativeOnDisconnect, context);
         }
 
-        ~ManagedClient() {
-            delete nativeClient_;
-            _handle.Free();
+        ~ManagedClient() { delete nativeClient_; _handle.Free(); }
+
+        bool Login(String^ userName, String^ password) {
+            std::string u = msclr::interop::marshal_as<std::string>(userName);
+            std::string p = msclr::interop::marshal_as<std::string>(password);
+            bool ok = nativeClient_->connect(u, p);
+            if (ok) UserName = userName;
+            return ok;
         }
 
-        bool Connect(String^ userName) {
-            std::string name = msclr::interop::marshal_as<std::string>(userName);
-            bool ok = nativeClient_->connect(name);
-            if (ok)
-                UserName = userName;   // Сохраняем имя после успешного входа
+        bool Register(String^ userName, String^ password) {
+            std::string u = msclr::interop::marshal_as<std::string>(userName);
+            std::string p = msclr::interop::marshal_as<std::string>(password);
+            bool ok = nativeClient_->registerUser(u, p);
+            if (ok) UserName = userName;
             return ok;
         }
 

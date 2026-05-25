@@ -17,7 +17,8 @@ public:
         void* context);
     ~Client();
 
-    bool connect(const std::string& userName);
+    bool connect(const std::string& userName, const std::string& password);
+    bool registerUser(const std::string& userName, const std::string& password);
     void disconnect();
     void sendMessage(const std::string& to, const std::string& text);
     void requestUserList();

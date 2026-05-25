@@ -12,15 +12,12 @@ Client::~Client() {
     disconnect();
 }
 
-bool Client::connect(const std::string& userName) {
+bool Client::connect(const std::string& userName, const std::string& password) {
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) return false;
 
     m_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (m_socket == INVALID_SOCKET) {
-        WSACleanup();
-        return false;
-    }
+    if (m_socket == INVALID_SOCKET) { WSACleanup(); return false; }
 
     sockaddr_in hint;
     hint.sin_family = AF_INET;
@@ -28,30 +25,61 @@ bool Client::connect(const std::string& userName) {
     inet_pton(AF_INET, m_serverIp.c_str(), &hint.sin_addr);
 
     if (::connect(m_socket, (sockaddr*)&hint, sizeof(hint)) == SOCKET_ERROR) {
-        closesocket(m_socket);
-        WSACleanup();
-        return false;
+        closesocket(m_socket); WSACleanup(); return false;
     }
 
-    std::string loginCmd = "LOGIN:" + userName + "\n";
-    if (send(m_socket, loginCmd.c_str(), static_cast<int>(loginCmd.size()), 0) == SOCKET_ERROR) {
-        closesocket(m_socket);
-        WSACleanup();
-        return false;
+    // Отправка LOGIN:user:pass
+    std::string cmd = "LOGIN:" + userName + ":" + password + "\n";
+    if (send(m_socket, cmd.c_str(), static_cast<int>(cmd.size()), 0) == SOCKET_ERROR) {
+        closesocket(m_socket); WSACleanup(); return false;
     }
 
     char buffer[MAX_BUFFER_SIZE];
     int bytes = recv(m_socket, buffer, MAX_BUFFER_SIZE, 0);
-    if (bytes <= 0) {
-        closesocket(m_socket);
-        WSACleanup();
-        return false;
-    }
+    if (bytes <= 0) { closesocket(m_socket); WSACleanup(); return false; }
     std::string response(buffer, bytes);
     if (response.find("LOGIN_OK") == std::string::npos) {
-        closesocket(m_socket);
-        WSACleanup();
-        return false;
+        closesocket(m_socket); WSACleanup(); return false;
+    }
+
+    m_running = true;
+    m_recvThread = std::thread(&Client::receiverThread, this);
+    return true;
+}
+
+bool Client::registerUser(const std::string& userName, const std::string& password) {
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) return false;
+
+    m_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (m_socket == INVALID_SOCKET) { WSACleanup(); return false; }
+
+    sockaddr_in hint;
+    hint.sin_family = AF_INET;
+    hint.sin_port = htons(m_port);
+    inet_pton(AF_INET, m_serverIp.c_str(), &hint.sin_addr);
+
+    if (::connect(m_socket, (sockaddr*)&hint, sizeof(hint)) == SOCKET_ERROR) {
+        closesocket(m_socket); WSACleanup(); return false;
+    }
+
+    std::string cmd = "REGISTER:" + userName + ":" + password + "\n";
+    if (send(m_socket, cmd.c_str(), static_cast<int>(cmd.size()), 0) == SOCKET_ERROR) {
+        closesocket(m_socket); WSACleanup(); return false;
+    }
+
+    char buffer[MAX_BUFFER_SIZE];
+    int bytes = recv(m_socket, buffer, MAX_BUFFER_SIZE, 0);
+    if (bytes <= 0) { closesocket(m_socket); WSACleanup(); return false; }
+    std::string response(buffer, bytes);
+    if (response.find("REGISTER_OK") == std::string::npos) {
+        closesocket(m_socket); WSACleanup(); return false;
+    }
+    std::string resp = response;
+    while (resp.find("LOGIN_OK") == std::string::npos) {
+        bytes = recv(m_socket, buffer, MAX_BUFFER_SIZE, 0);
+        if (bytes <= 0) { closesocket(m_socket); WSACleanup(); return false; }
+        resp += std::string(buffer, bytes);
     }
 
     m_running = true;

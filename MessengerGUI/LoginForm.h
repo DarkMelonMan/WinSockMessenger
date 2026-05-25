@@ -1,4 +1,5 @@
 #pragma once
+#include "ManagedClient.h"
 
 using namespace System;
 using namespace System::ComponentModel;
@@ -11,45 +12,58 @@ namespace MessengerGUI {
     public ref class LoginForm : public Form {
     public:
         property String^ UserName;
+        property String^ Password;
 
         LoginForm() {
             Text = "Вход в мессенджер";
-            Width = 300;
-            Height = 150;
+            Width = 300; Height = 180;
             FormBorderStyle = Windows::Forms::FormBorderStyle::FixedDialog;
-            MaximizeBox = false;
             StartPosition = FormStartPosition::CenterScreen;
 
-            Label^ label = gcnew Label();
-            label->Text = "Имя пользователя:";
-            label->Location = Point(20, 20);
-            label->Width = 110;
+            // Логин
+            Label^ lblLogin = gcnew Label();
+            lblLogin->Text = "Логин:";
+            lblLogin->Location = Point(20, 20);
+            Controls->Add(lblLogin);
 
-            TextBox^ textBox = gcnew TextBox();
-            textBox->Location = Point(140, 18);
-            textBox->Width = 120;
+            _loginBox = gcnew TextBox();
+            _loginBox->Location = Point(100, 18);
+            _loginBox->Width = 150;
+            Controls->Add(_loginBox);
 
-            Button^ btnOk = gcnew Button();
-            btnOk->Text = "Войти";
-            btnOk->Location = Point(100, 60);
-            btnOk->Click += gcnew EventHandler(this, &LoginForm::BtnOk_Click);
+            // Пароль
+            Label^ lblPass = gcnew Label();
+            lblPass->Text = "Пароль:";
+            lblPass->Location = Point(20, 55);
+            Controls->Add(lblPass);
 
-            Controls->Add(label);
-            Controls->Add(textBox);
-            Controls->Add(btnOk);
-            _textBox = textBox;
+            _passBox = gcnew TextBox();
+            _passBox->Location = Point(100, 53);
+            _passBox->Width = 150;
+            _passBox->PasswordChar = '*';
+            Controls->Add(_passBox);
+
+            // Кнопка "Войти"
+            Button^ btnLogin = gcnew Button();
+            btnLogin->Text = "Войти";
+            btnLogin->Location = Point(90, 95);
+            btnLogin->Click += gcnew EventHandler(this, &LoginForm::OnLogin);
+            Controls->Add(btnLogin);
         }
 
     private:
-        TextBox^ _textBox;
+        TextBox^ _loginBox;
+        TextBox^ _passBox;
 
-        void BtnOk_Click(Object^ sender, EventArgs^ e) {
-            String^ name = _textBox->Text->Trim();
-            if (String::IsNullOrEmpty(name)) {
-                MessageBox::Show("Введите имя!");
+        void OnLogin(Object^, EventArgs^) {
+            String^ login = _loginBox->Text->Trim();
+            String^ pass = _passBox->Text;
+            if (String::IsNullOrEmpty(login) || String::IsNullOrEmpty(pass)) {
+                MessageBox::Show("Заполните все поля");
                 return;
             }
-            UserName = name;
+            UserName = login;
+            Password = pass;
             DialogResult = Windows::Forms::DialogResult::OK;
             Close();
         }

@@ -1,16 +1,10 @@
 #pragma once
 #include "messenger.h"
-#include <string>
 #include <unordered_map>
-#include <vector>
-#include <thread>
-#include <mutex>
-#include <atomic>
-#include <functional>
+#include "C:\Program Files\PostgreSQL\13\include\libpq-fe.h"
 
 class Server {
 public:
-    // Типы коллбэков с void*-контекстом
     using LogCallback = void(*)(const std::string& message, void* context);
     using ClientListCallback = void(*)(const std::vector<std::string>& clients, void* context);
 
@@ -29,6 +23,12 @@ private:
     void log(const std::string& msg);
     void notifyClientList();
 
+    bool dbConnect();
+    bool dbUserExists(const std::string& username);
+    bool dbCreateUser(const std::string& username, const std::string& passwordHash);
+    bool dbVerifyPassword(const std::string& username, const std::string& passwordHash);
+    std::string hashPassword(const std::string& password);
+
     int m_port;
     SOCKET m_listeningSocket;
     std::unordered_map<SOCKET, std::string> m_clients;
@@ -38,4 +38,6 @@ private:
     LogCallback m_onLog;
     ClientListCallback m_onClientList;
     void* m_context;
+
+    PGconn* m_dbConn = nullptr;
 };
