@@ -22,9 +22,9 @@ namespace MessengerGUI {
             StartPosition = FormStartPosition::CenterScreen;
 
             Label^ lblIp = gcnew Label(); lblIp->Text = "IP:"; lblIp->Location = Point(20, 20);
-            _ipBox = gcnew TextBox(); _ipBox->Text = "127.0.0.1"; _ipBox->Location = Point(80, 18); _ipBox->Width = 150;
+            _ipBox = gcnew TextBox(); _ipBox->Text = "127.0.0.1"; _ipBox->Location = Point(120, 18); _ipBox->Width = 100;
             Label^ lblPort = gcnew Label(); lblPort->Text = "Порт:"; lblPort->Location = Point(20, 55);
-            _portBox = gcnew TextBox(); _portBox->Text = "54000"; _portBox->Location = Point(80, 53); _portBox->Width = 60;
+            _portBox = gcnew TextBox(); _portBox->Text = "54000"; _portBox->Location = Point(120, 53); _portBox->Width = 60;
             Button^ btnConnect = gcnew Button(); btnConnect->Text = "Подключиться"; btnConnect->Location = Point(90, 100);
             btnConnect->Click += gcnew EventHandler(this, &ConnectForm::OnConnect);
 
