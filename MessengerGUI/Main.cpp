@@ -1,4 +1,5 @@
 #include "ChoiceForm.h"
+#include "AuthChoiceForm.h"
 #include "LoginForm.h"
 #include "RegisterForm.h"
 #include "ConnectForm.h"
@@ -14,7 +15,7 @@ int main(array<String^>^ args) {
     Application::EnableVisualStyles();
     Application::SetCompatibleTextRenderingDefault(false);
 
-    // 1. Выбор: сервер или клиент
+    // 1. Выбор клиент / сервер
     ChoiceForm^ choice = gcnew ChoiceForm();
     if (choice->ShowDialog() == Windows::Forms::DialogResult::Cancel)
         return 0;
@@ -23,39 +24,15 @@ int main(array<String^>^ args) {
         Application::Run(gcnew ServerForm());
     }
     else {
-        // 2. Диалог авторизации (Вход / Регистрация)
-        Form^ authChoice = gcnew Form();
-        authChoice->Text = "Авторизация";
-        authChoice->Width = 250;
-        authChoice->Height = 130;
-        authChoice->FormBorderStyle = FormBorderStyle::FixedDialog;
-        authChoice->StartPosition = FormStartPosition::CenterScreen;
-
-        Button^ btnLogin = gcnew Button();
-        btnLogin->Text = "Вход";
-        btnLogin->Location = Point(30, 30);
-        btnLogin->Width = 80;
-        btnLogin->DialogResult = Windows::Forms::DialogResult::OK;  // Закроет форму с OK
-        authChoice->Controls->Add(btnLogin);
-
-        Button^ btnRegister = gcnew Button();
-        btnRegister->Text = "Регистрация";
-        btnRegister->Location = Point(130, 30);
-        btnRegister->Width = 80;
-        btnRegister->DialogResult = Windows::Forms::DialogResult::Yes;  // Закроет форму с Yes
-        authChoice->Controls->Add(btnRegister);
-
-        // Отображение диалога и получение результата
-        Windows::Forms::DialogResult authResult = authChoice->ShowDialog();
-        if (authResult == Windows::Forms::DialogResult::Cancel)
+        // 2. Выбор авторизации / регистрации
+        AuthChoiceForm^ authChoice = gcnew AuthChoiceForm();
+        if (authChoice->ShowDialog() == Windows::Forms::DialogResult::Cancel)
             return 0;
 
         String^ userName;
         String^ password;
-        bool isRegistration = false;
-
-        // 3. Обработка выбора: Вход или Регистрация
-        if (authResult == Windows::Forms::DialogResult::Yes) {
+        bool isRegistration = (authChoice->SelectedMode == AuthChoiceForm::AuthMode::Register);
+        if (isRegistration) {
             RegisterForm^ regForm = gcnew RegisterForm();
             if (regForm->ShowDialog() != Windows::Forms::DialogResult::OK)
                 return 0;
@@ -79,7 +56,7 @@ int main(array<String^>^ args) {
         if (connect->ShowDialog() != Windows::Forms::DialogResult::OK)
             return 0;
 
-        // 5. Главное окно — список контактов
+        // 5. Список контактов
         Application::Run(gcnew ChatListForm(connect->Client));
     }
     return 0;

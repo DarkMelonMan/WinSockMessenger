@@ -14,7 +14,7 @@ namespace MessengerGUI {
         property ManagedClient^ Client;
         property String^ UserName;
         property String^ Password;
-        property bool IsRegistration; // флаг, регистрация или вход
+        property bool IsRegistration;
 
         ConnectForm() {
             Text = "Подключение к серверу";

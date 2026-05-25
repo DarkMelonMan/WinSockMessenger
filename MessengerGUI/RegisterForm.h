@@ -14,14 +14,14 @@ namespace MessengerGUI {
         property String^ Password;
 
         RegisterForm() {
-            Text = "Р РµРіРёСЃС‚СЂР°С†РёСЏ";
+            Text = "Регистрация";
             Width = 300; Height = 220;
             FormBorderStyle = Windows::Forms::FormBorderStyle::FixedDialog;
             StartPosition = FormStartPosition::CenterScreen;
 
-            // Р›РѕРіРёРЅ
+            // Логин
             Label^ lblLogin = gcnew Label();
-            lblLogin->Text = "Р›РѕРіРёРЅ:";
+            lblLogin->Text = "Логин:";
             lblLogin->Location = Point(20, 20);
             Controls->Add(lblLogin);
 
@@ -30,9 +30,9 @@ namespace MessengerGUI {
             _loginBox->Width = 140;
             Controls->Add(_loginBox);
 
-            // РџР°СЂРѕР»СЊ
+            // Пароль
             Label^ lblPass = gcnew Label();
-            lblPass->Text = "РџР°СЂРѕР»СЊ:";
+            lblPass->Text = "Пароль:";
             lblPass->Location = Point(20, 55);
             Controls->Add(lblPass);
 
@@ -42,9 +42,9 @@ namespace MessengerGUI {
             _passBox->PasswordChar = '*';
             Controls->Add(_passBox);
 
-            // РџРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ РїР°СЂРѕР»СЏ
+            // Подтверждение пароля
             Label^ lblConfirm = gcnew Label();
-            lblConfirm->Text = "РџРѕРґС‚РІРµСЂРґРёС‚Рµ:";
+            lblConfirm->Text = "Подтвердите:";
             lblConfirm->Location = Point(20, 90);
             Controls->Add(lblConfirm);
 
@@ -54,9 +54,9 @@ namespace MessengerGUI {
             _confirmBox->PasswordChar = '*';
             Controls->Add(_confirmBox);
 
-            // РљРЅРѕРїРєР° "Р—Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°С‚СЊСЃСЏ"
+            // Кнопка "Зарегистрироваться"
             Button^ btnRegister = gcnew Button();
-            btnRegister->Text = "Р—Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°С‚СЊСЃСЏ";
+            btnRegister->Text = "Зарегистрироваться";
             btnRegister->Location = Point(70, 130);
             btnRegister->Width = 150;
             btnRegister->Click += gcnew EventHandler(this, &RegisterForm::OnRegister);
@@ -74,11 +74,11 @@ namespace MessengerGUI {
             String^ confirm = _confirmBox->Text;
 
             if (String::IsNullOrEmpty(login) || String::IsNullOrEmpty(pass) || String::IsNullOrEmpty(confirm)) {
-                MessageBox::Show("Р—Р°РїРѕР»РЅРёС‚Рµ РІСЃРµ РїРѕР»СЏ");
+                MessageBox::Show("Заполните все поля");
                 return;
             }
             if (pass != confirm) {
-                MessageBox::Show("РџР°СЂРѕР»Рё РЅРµ СЃРѕРІРїР°РґР°СЋС‚");
+                MessageBox::Show("Пароли не совпадают");
                 return;
             }
             UserName = login;

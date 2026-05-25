@@ -27,8 +27,8 @@ namespace MessengerGUI {
             Controls->Add(lblLogin);
 
             _loginBox = gcnew TextBox();
-            _loginBox->Location = Point(100, 18);
-            _loginBox->Width = 150;
+            _loginBox->Location = Point(120, 18);
+            _loginBox->Width = 120;
             Controls->Add(_loginBox);
 
             // Пароль
@@ -38,8 +38,8 @@ namespace MessengerGUI {
             Controls->Add(lblPass);
 
             _passBox = gcnew TextBox();
-            _passBox->Location = Point(100, 53);
-            _passBox->Width = 150;
+            _passBox->Location = Point(120, 53);
+            _passBox->Width = 120;
             _passBox->PasswordChar = '*';
             Controls->Add(_passBox);
 

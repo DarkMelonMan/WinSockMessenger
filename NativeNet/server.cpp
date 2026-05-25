@@ -3,7 +3,7 @@
 #include <sstream>
 #include <iomanip>
 
-static const char* DB_CONNINFO = "host=localhost dbname=Messenger user=admin password=postgres";
+static const char* DB_CONNINFO = "host=localhost dbname=Messenger user=postgres password=qwe!123";
 
 Server::Server(int port, LogCallback onLog, ClientListCallback onClientList, void* context)
     : m_port(port), m_listeningSocket(INVALID_SOCKET), m_running(false),
