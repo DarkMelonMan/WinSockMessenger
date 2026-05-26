@@ -9,56 +9,67 @@ using namespace System::Data;
 using namespace System::Drawing;
 
 namespace MessengerGUI {
+
     public ref class ConnectForm : public Form {
     public:
         property ManagedClient^ Client;
-        property String^ UserName;
-        property String^ Password;
-        property bool IsRegistration;
 
         ConnectForm() {
             Text = "Подключение к серверу";
-            Width = 300; Height = 200;
+            Width = 300;
+            Height = 200;
+            FormBorderStyle = Windows::Forms::FormBorderStyle::FixedDialog;
             StartPosition = FormStartPosition::CenterScreen;
 
-            Label^ lblIp = gcnew Label(); lblIp->Text = "IP:"; lblIp->Location = Point(20, 20);
-            _ipBox = gcnew TextBox(); _ipBox->Text = "127.0.0.1"; _ipBox->Location = Point(120, 18); _ipBox->Width = 100;
-            Label^ lblPort = gcnew Label(); lblPort->Text = "Порт:"; lblPort->Location = Point(20, 55);
-            _portBox = gcnew TextBox(); _portBox->Text = "54000"; _portBox->Location = Point(120, 53); _portBox->Width = 60;
-            Button^ btnConnect = gcnew Button(); btnConnect->Text = "Подключиться"; btnConnect->Location = Point(90, 100);
-            btnConnect->Click += gcnew EventHandler(this, &ConnectForm::OnConnect);
+            Label^ lblIp = gcnew Label();
+            lblIp->Text = "IP-адрес:";
+            lblIp->Location = Point(20, 20);
+            lblIp->Width = 80;
+            Controls->Add(lblIp);
 
-            Controls->Add(lblIp); Controls->Add(_ipBox);
-            Controls->Add(lblPort); Controls->Add(_portBox);
-            Controls->Add(btnConnect);
+            _ipBox = gcnew TextBox();
+            _ipBox->Text = "127.0.0.1";
+            _ipBox->Location = Point(110, 18);
+            _ipBox->Width = 140;
+            Controls->Add(_ipBox);
+
+            Label^ lblPort = gcnew Label();
+            lblPort->Text = "Порт:";
+            lblPort->Location = Point(20, 55);
+            lblPort->Width = 80;
+            Controls->Add(lblPort);
+
+            _portBox = gcnew TextBox();
+            _portBox->Text = "54000";
+            _portBox->Location = Point(110, 53);
+            _portBox->Width = 60;
+            Controls->Add(_portBox);
+
+            Button^ btnOk = gcnew Button();
+            btnOk->Text = "Далее";
+            btnOk->Location = Point(100, 100);
+            btnOk->Click += gcnew EventHandler(this, &ConnectForm::OnOk);
+            Controls->Add(btnOk);
         }
 
     private:
         TextBox^ _ipBox;
         TextBox^ _portBox;
 
-        void OnConnect(Object^, EventArgs^) {
+        void OnOk(Object^, EventArgs^) {
             String^ ip = _ipBox->Text->Trim();
             int port;
-            if (!Int32::TryParse(_portBox->Text->Trim(), port)) {
-                MessageBox::Show("Некорректный порт"); return;
-            }
-            Cursor = Cursors::WaitCursor;
-            ManagedClient^ client = gcnew ManagedClient(ip, port);
-            bool ok;
-            if (IsRegistration)
-                ok = client->Register(UserName, Password);
-            else
-                ok = client->Login(UserName, Password);
-
-            Cursor = Cursors::Default;
-            if (!ok) {
-                String^ err = IsRegistration ? "Ошибка регистрации. Возможно, имя занято." : "Ошибка входа. Проверьте логин/пароль.";
-                MessageBox::Show(err);
-                delete client;
+            if (!Int32::TryParse(_portBox->Text->Trim(), port) || port < 1 || port > 65535) {
+                MessageBox::Show("Некорректный порт");
                 return;
             }
-            Client = client;
+            try {
+                Client = gcnew ManagedClient(ip, port);
+            }
+            catch (Exception^ ex) {
+                MessageBox::Show("Ошибка создания клиента: " + ex->Message);
+                return;
+            }
             DialogResult = Windows::Forms::DialogResult::OK;
             Close();
         }
