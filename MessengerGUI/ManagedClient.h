@@ -1,8 +1,6 @@
 #pragma once
 #include "../NativeNet/client.h"
 #include <msclr/marshal_cppstd.h>
-#include <string>
-#include <vector>
 #include <gcroot.h>
 
 using namespace System;
@@ -15,6 +13,7 @@ static void NativeOnUserList(const std::vector<std::string>& users, void* contex
 static void NativeOnDisconnect(void* context);
 
 namespace MessengerGUI {
+
     public ref class ManagedClient {
     public:
         property String^ UserName;
@@ -27,10 +26,20 @@ namespace MessengerGUI {
             std::string ip = msclr::interop::marshal_as<std::string>(serverIp);
             _handle = GCHandle::Alloc(this);
             void* context = GCHandle::ToIntPtr(_handle).ToPointer();
-            nativeClient_ = new Client(ip, port, &NativeOnMessage, &NativeOnUserList, &NativeOnDisconnect, context);
+            nativeClient_ = new Client(ip, port,
+                &NativeOnMessage, &NativeOnUserList, &NativeOnDisconnect, context);
         }
 
-        ~ManagedClient() { delete nativeClient_; _handle.Free(); }
+        ~ManagedClient() {
+            if (!_disposed) {
+                DisconnectInternal();
+            }
+            delete nativeClient_;
+            nativeClient_ = nullptr;
+            if (_handle.IsAllocated) {
+                _handle.Free();
+            }
+        }
 
         bool Login(String^ userName, String^ password) {
             std::string u = msclr::interop::marshal_as<std::string>(userName);
@@ -49,33 +58,48 @@ namespace MessengerGUI {
         }
 
         void Disconnect() {
-            nativeClient_->disconnect();
+            if (!_disposed) {
+                DisconnectInternal();
+                if (_handle.IsAllocated) {
+                    _handle.Free();
+                }
+            }
         }
 
         void SendMessage(String^ to, String^ text) {
+            if (_disposed) return;
             std::string t = msclr::interop::marshal_as<std::string>(to);
             std::string msg = msclr::interop::marshal_as<std::string>(text);
             nativeClient_->sendMessage(t, msg);
         }
 
         void RequestUserList() {
+            if (_disposed) return;
             nativeClient_->requestUserList();
         }
 
     internal:
         void RaiseMessageReceived(String^ msg) {
-            MessageReceived(msg);
+            if (!_disposed) MessageReceived(msg);
         }
         void RaiseUserListUpdated(array<String^>^ users) {
-            UserListUpdated(users);
+            if (!_disposed) UserListUpdated(users);
         }
         void RaiseDisconnected() {
-            Disconnected();
+            if (!_disposed) Disconnected();
         }
 
     private:
         Client* nativeClient_;
         GCHandle _handle;
+        bool _disposed = false;
+
+        void DisconnectInternal() {
+            if (nativeClient_) {
+                nativeClient_->disconnect();
+            }
+            _disposed = true;
+        }
     };
 }
 static void NativeOnMessage(const std::string& msg, void* context) {

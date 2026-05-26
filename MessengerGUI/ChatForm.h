@@ -39,7 +39,6 @@ namespace MessengerGUI {
 
             _messageHandler = gcnew Action<String^>(this, &ChatForm::OnMessageReceived);
             _client->MessageReceived += _messageHandler;
-
             this->FormClosing += gcnew FormClosingEventHandler(this, &ChatForm::OnClosing);
         }
 
@@ -48,31 +47,37 @@ namespace MessengerGUI {
         String^ _peer;
         RichTextBox^ _history;
         TextBox^ _inputBox;
-        Action<String^>^ _messageHandler;  // для отписки
+        Action<String^>^ _messageHandler;
 
         void SendBtn_Click(Object^, EventArgs^) {
             String^ text = _inputBox->Text->Trim();
             if (!String::IsNullOrEmpty(text)) {
                 _client->SendMessage(_peer, text);
-                _history->AppendText("Я: " + text + "\n");
+                AppendText("Я: " + text + "\n");
                 _inputBox->Clear();
-                _history->ScrollToCaret();
             }
         }
 
         void OnMessageReceived(String^ msg) {
-            // Ожидается формат PRIVMSG:отправитель:сообщение
+            // Маршалинг в UI-поток
+            if (_history->InvokeRequired) {
+                _history->Invoke(gcnew Action<String^>(this, &ChatForm::OnMessageReceived), msg);
+                return;
+            }
             if (msg->StartsWith("PRIVMSG:")) {
                 array<String^>^ parts = msg->Split(':');
                 if (parts->Length >= 3 && parts[1] == _peer) {
-                    _history->AppendText(_peer + ": " + parts[2] + "\n");
-                    _history->ScrollToCaret();
+                    AppendText(_peer + ": " + parts[2] + "\n");
                 }
             }
             else if (msg->StartsWith("ERROR")) {
-                _history->AppendText("[Ошибка] " + msg + "\n");
-                _history->ScrollToCaret();
+                AppendText("[Ошибка] " + msg + "\n");
             }
+        }
+
+        void AppendText(String^ text) {
+            _history->AppendText(text);
+            _history->ScrollToCaret();
         }
 
         void OnClosing(Object^, FormClosingEventArgs^ e) {

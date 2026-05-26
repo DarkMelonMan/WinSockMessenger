@@ -44,8 +44,6 @@ namespace MessengerGUI {
             if (!_running) return;
             _running = false;
             nativeServer_->stop();
-            delete nativeServer_;
-            nativeServer_ = nullptr;
         }
 
     internal:

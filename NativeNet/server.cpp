@@ -20,11 +20,9 @@ void Server::log(const std::string& msg) {
 void Server::notifyClientList() {
     if (!m_onClientList) return;
     std::vector<std::string> users;
-    {
-        std::lock_guard<std::mutex> lock(m_clientsMutex);
-        for (auto& p : m_clients)
-            users.push_back(p.second);
-    }
+    std::lock_guard<std::mutex> lock(m_clientsMutex);
+    for (auto& p : m_clients)
+        users.push_back(p.second);
     m_onClientList(users, m_context);
 }
 
@@ -81,13 +79,33 @@ void Server::start() {
 void Server::stop() {
     if (!m_running) return;
     m_running = false;
+
+    // Закрыть слушающий сокет, чтобы accept завершился
     closesocket(m_listeningSocket);
+
+    // Закрыть все клиентские сокеты, чтобы потоки handleClient вышли из recv
     {
         std::lock_guard<std::mutex> lock(m_clientsMutex);
         for (auto& pair : m_clients)
             closesocket(pair.first);
+    }
+
+    // Дождаться завершения всех клиентских потоков
+    {
+        std::lock_guard<std::mutex> lock(m_threadsMutex);
+        for (auto& t : m_clientThreads) {
+            if (t.joinable())
+                t.join();
+        }
+        m_clientThreads.clear();
+    }
+
+    // Теперь безопасно очистить список клиентов
+    {
+        std::lock_guard<std::mutex> lock(m_clientsMutex);
         m_clients.clear();
     }
+
     PQfinish(m_dbConn);
     WSACleanup();
     log("Server stopped");
@@ -102,8 +120,23 @@ void Server::acceptClients() {
             if (m_running) log("Accept failed");
             continue;
         }
-        std::thread(&Server::handleClient, this, clientSocket).detach();
+
+        // Создаём поток и сохраняем его
+        std::thread t(&Server::handleClient, this, clientSocket);
+        {
+            std::lock_guard<std::mutex> lock(m_threadsMutex);
+            m_clientThreads.push_back(std::move(t));
+            removeFinishedThreads(); // удалим уже завершившиеся
+        }
     }
+}
+
+void Server::removeFinishedThreads() {
+    // Удаляем потоки, которые уже завершились (не joinable)
+    m_clientThreads.erase(
+        std::remove_if(m_clientThreads.begin(), m_clientThreads.end(),
+            [](std::thread& t) { return !t.joinable(); }),
+        m_clientThreads.end());
 }
 
 void Server::handleClient(SOCKET clientSocket) {
@@ -114,13 +147,21 @@ void Server::handleClient(SOCKET clientSocket) {
     while (m_running) {
         std::string cmd = readCommand(clientSocket, buffer);
         if (cmd.empty()) {
-            std::lock_guard<std::mutex> lock(m_clientsMutex);
-            auto it = m_clients.find(clientSocket);
-            if (it != m_clients.end()) {
-                log(it->second + " disconnected");
-                m_clients.erase(it);
+            std::string disconnectedName;
+            {
+                std::lock_guard<std::mutex> lock(m_clientsMutex);
+                auto it = m_clients.find(clientSocket);
+                if (it != m_clients.end()) {
+                    disconnectedName = it->second;
+                    m_clients.erase(it);
+                }
             }
-            break;
+            if (!disconnectedName.empty()) {
+                log(disconnectedName + " disconnected");
+            }
+            closesocket(clientSocket);
+            notifyClientList();   // вызывается без захваченного мьютекса
+            return;
         }
 
         if (cmd.substr(0, 9) == "REGISTER:") {
@@ -181,7 +222,6 @@ void Server::handleClient(SOCKET clientSocket) {
                 sendToClient(clientSocket, "LOGIN_ERROR:wrong password\n");
                 continue;
             }
-            // Проверка, не залогинен ли уже
             {
                 std::lock_guard<std::mutex> lock(m_clientsMutex);
                 bool already = false;
@@ -193,12 +233,12 @@ void Server::handleClient(SOCKET clientSocket) {
                     continue;
                 }
                 m_clients[clientSocket] = user;
-                name = user;
             }
-            sendToClient(clientSocket, "LOGIN_OK\n");
-            log(name + " logged in");
-            notifyClientList();
-            break;
+            name = user;
+        sendToClient(clientSocket, "LOGIN_OK\n");
+        log(name + " logged in");
+        notifyClientList();
+        break;
         }
         else {
             sendToClient(clientSocket, "ERROR:REGISTER or LOGIN required\n");
@@ -238,12 +278,27 @@ void Server::handleClient(SOCKET clientSocket) {
             break;
         }
     }
-
-    closesocket(clientSocket);
-    notifyClientList();
+    if (m_running) {
+        std::string disconnectedName;
+        {
+            std::lock_guard<std::mutex> lock(m_clientsMutex);
+            auto it = m_clients.find(clientSocket);
+            if (it != m_clients.end()) {
+                disconnectedName = it->second;   // используем переменную name из handleClient
+                m_clients.erase(it);
+            }
+        } // мьютекс освобождён
+        if (!disconnectedName.empty()) {
+            log(disconnectedName + " disconnected");
+        }
+        closesocket(clientSocket);
+        notifyClientList();
+    }
+    else {
+        closesocket(clientSocket);
+    }
 }
 
-// --- Вспомогательные методы сети ---
 void Server::sendToClient(SOCKET s, const std::string& msg) {
     send(s, msg.c_str(), static_cast<int>(msg.size()), 0);
 }
@@ -276,7 +331,6 @@ std::string Server::readCommand(SOCKET s, std::string& buffer) {
     }
 }
 
-// --- Работа с БД ---
 bool Server::dbConnect() {
     m_dbConn = PQconnectdb(DB_CONNINFO);
     if (PQstatus(m_dbConn) != CONNECTION_OK) {

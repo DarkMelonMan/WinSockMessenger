@@ -40,4 +40,8 @@ private:
     void* m_context;
 
     PGconn* m_dbConn = nullptr;
+
+    std::vector<std::thread> m_clientThreads;
+    std::mutex m_threadsMutex;
+    void removeFinishedThreads();
 };

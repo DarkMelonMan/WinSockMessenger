@@ -74,6 +74,7 @@ namespace MessengerGUI {
         ListBox^ _clientListBox;
         RichTextBox^ _logBox;
         ManagedServer^ _server;
+        array<String^>^ _pendingClients;
 
         void StartServer(Object^, EventArgs^) {
             int port;
@@ -113,21 +114,23 @@ namespace MessengerGUI {
 
         void OnClientListUpdated(array<String^>^ clients) {
             if (_clientListBox->InvokeRequired) {
-                _clientListBox->Invoke(
-                    gcnew Action<array<String^>^>(this, &ServerForm::OnClientListUpdated),
-                    gcnew array<Object^> { clients });
+                _pendingClients = clients;
+                _clientListBox->Invoke(gcnew MethodInvoker(this, &ServerForm::UpdateClientListUI));
                 return;
             }
             _clientListBox->Items->Clear();
             for each (String ^ client in clients)
                 _clientListBox->Items->Add(client);
         }
+        void UpdateClientListUI() {
+            _clientListBox->Items->Clear();
+            for each (String ^ client in _pendingClients)
+                _clientListBox->Items->Add(client);
+        }
 
         void Log(String^ msg) {
             if (_logBox->InvokeRequired) {
-                _logBox->Invoke(
-                    gcnew Action<String^>(this, &ServerForm::Log),
-                    gcnew array<Object^> { msg });
+                _logBox->Invoke(gcnew Action<String^>(this, &ServerForm::Log), msg);
                 return;
             }
             _logBox->AppendText(DateTime::Now.ToString("HH:mm:ss") + " " + msg + "\n");
