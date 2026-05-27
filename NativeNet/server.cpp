@@ -80,17 +80,14 @@ void Server::stop() {
     if (!m_running) return;
     m_running = false;
 
-    // Закрыть слушающий сокет, чтобы accept завершился
     closesocket(m_listeningSocket);
 
-    // Закрыть все клиентские сокеты, чтобы потоки handleClient вышли из recv
     {
         std::lock_guard<std::mutex> lock(m_clientsMutex);
         for (auto& pair : m_clients)
             closesocket(pair.first);
     }
 
-    // Дождаться завершения всех клиентских потоков
     {
         std::lock_guard<std::mutex> lock(m_threadsMutex);
         for (auto& t : m_clientThreads) {
@@ -100,7 +97,6 @@ void Server::stop() {
         m_clientThreads.clear();
     }
 
-    // Теперь безопасно очистить список клиентов
     {
         std::lock_guard<std::mutex> lock(m_clientsMutex);
         m_clients.clear();
@@ -121,7 +117,6 @@ void Server::acceptClients() {
             continue;
         }
 
-        // Создаём поток и сохраняем его
         std::thread t(&Server::handleClient, this, clientSocket);
         {
             std::lock_guard<std::mutex> lock(m_threadsMutex);
@@ -132,7 +127,6 @@ void Server::acceptClients() {
 }
 
 void Server::removeFinishedThreads() {
-    // Удаляем потоки, которые уже завершились (не joinable)
     m_clientThreads.erase(
         std::remove_if(m_clientThreads.begin(), m_clientThreads.end(),
             [](std::thread& t) { return !t.joinable(); }),
@@ -160,7 +154,7 @@ void Server::handleClient(SOCKET clientSocket) {
                 log(disconnectedName + " disconnected");
             }
             closesocket(clientSocket);
-            notifyClientList();   // вызывается без захваченного мьютекса
+            notifyClientList();
             return;
         }
 
@@ -245,7 +239,6 @@ void Server::handleClient(SOCKET clientSocket) {
         }
     }
 
-    // Основной цикл обмена сообщениями (как раньше)
     std::string buf;
     while (m_running) {
         std::string cmd = readCommand(clientSocket, buf);
@@ -270,6 +263,17 @@ void Server::handleClient(SOCKET clientSocket) {
                     break;
                 }
             }
+            dbSaveMessage(from, target, text);
+        }
+        else if (cmd.substr(0, 8) == "HISTORY:") {
+            std::string peer = cmd.substr(8);
+            std::lock_guard<std::mutex> lock(m_clientsMutex);
+            auto it = m_clients.find(clientSocket);
+            if (it != m_clients.end()) {
+                std::string history = dbGetHistory(it->second, peer);
+                std::string response = "HISTORY_DATA:" + peer + ":" + history + "\n";
+                sendToClient(clientSocket, response);
+            }
         }
         else if (cmd == "USERLIST") {
             broadcastUserList();
@@ -284,10 +288,10 @@ void Server::handleClient(SOCKET clientSocket) {
             std::lock_guard<std::mutex> lock(m_clientsMutex);
             auto it = m_clients.find(clientSocket);
             if (it != m_clients.end()) {
-                disconnectedName = it->second;   // используем переменную name из handleClient
+                disconnectedName = it->second;
                 m_clients.erase(it);
             }
-        } // мьютекс освобождён
+        }
         if (!disconnectedName.empty()) {
             log(disconnectedName + " disconnected");
         }
@@ -339,6 +343,7 @@ bool Server::dbConnect() {
         m_dbConn = nullptr;
         return false;
     }
+    PQsetClientEncoding(m_dbConn, "UTF8");
     log("Connected to PostgreSQL");
     return true;
 }
@@ -374,10 +379,6 @@ bool Server::dbVerifyPassword(const std::string& username, const std::string& pa
 }
 
 std::string Server::hashPassword(const std::string& password) {
-    BCRYPT_ALG_HANDLE hAlg = nullptr;
-    BCryptOpenAlgorithmProvider(&hAlg, BCRYPT_SHA256_ALGORITHM, nullptr, 0);
-    BCryptCloseAlgorithmProvider(hAlg, 0); // упрощённо – для примера используем готовую функцию
-    // Корректная реализация:
     NTSTATUS status;
     BCRYPT_ALG_HANDLE hHashAlg;
     status = BCryptOpenAlgorithmProvider(&hHashAlg, BCRYPT_SHA256_ALGORITHM, nullptr, 0);
@@ -404,4 +405,35 @@ std::string Server::hashPassword(const std::string& password) {
     for (int i = 0; i < 32; ++i)
         ss << std::hex << std::setw(2) << std::setfill('0') << (int)hash[i];
     return ss.str();
+}
+
+bool Server::dbSaveMessage(const std::string& sender, const std::string& receiver, const std::string& content) {
+    const char* params[3] = { sender.c_str(), receiver.c_str(), content.c_str() };
+    PGresult* res = PQexecParams(m_dbConn,
+        "INSERT INTO messages (sender, receiver, content) VALUES ($1, $2, $3)",
+        3, nullptr, params, nullptr, nullptr, 0);
+    bool ok = (PQresultStatus(res) == PGRES_COMMAND_OK);
+    PQclear(res);
+    return ok;
+}
+
+std::string Server::dbGetHistory(const std::string& user1, const std::string& user2) {
+    const char* params[2] = { user1.c_str(), user2.c_str() };
+    PGresult* res = PQexecParams(m_dbConn,
+        "SELECT sender, content, to_char(sent_at, 'HH24:MI') FROM messages "
+        "WHERE (sender=$1 AND receiver=$2) OR (sender=$2 AND receiver=$1) "
+        "ORDER BY sent_at ASC",
+        2, nullptr, params, nullptr, nullptr, 0);
+
+    std::string history;
+    int rows = PQntuples(res);
+    for (int i = 0; i < rows; ++i) {
+        std::string sender = PQgetvalue(res, i, 0);
+        std::string content = PQgetvalue(res, i, 1);
+        std::string time = PQgetvalue(res, i, 2);
+        if (!history.empty()) history += '\x01';
+        history += sender + '\x02' + content + '\x02' + time;
+    }
+    PQclear(res);
+    return history;
 }

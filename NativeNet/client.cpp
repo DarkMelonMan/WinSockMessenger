@@ -3,9 +3,9 @@
 
 Client::Client(const std::string& serverIp, int port,
     MessageCallback onMsg, UserListCallback onUserList, VoidCallback onDisconnect,
-    void* context)
+    HistoryCallback onHistory, void* context)
     : m_serverIp(serverIp), m_port(port), m_socket(INVALID_SOCKET), m_running(false),
-    m_onMsg(onMsg), m_onUserList(onUserList), m_onDisconnect(onDisconnect), m_context(context) {
+    m_onMsg(onMsg), m_onUserList(onUserList), m_onDisconnect(onDisconnect), m_onHistory(onHistory), m_context(context) {
 }
 
 Client::~Client() {
@@ -109,6 +109,12 @@ void Client::requestUserList() {
     send(m_socket, cmd.c_str(), static_cast<int>(cmd.size()), 0);
 }
 
+void Client::requestHistory(const std::string& peer) {
+    std::string cmd = "HISTORY:" + peer + "\n";
+    std::lock_guard<std::mutex> lock(m_sendMutex);
+    send(m_socket, cmd.c_str(), static_cast<int>(cmd.size()), 0);
+}
+
 void Client::receiverThread() {
     char buffer[MAX_BUFFER_SIZE];
     std::string buf;
@@ -137,6 +143,15 @@ void Client::processCommand(const std::string& cmd) {
             start = end + 1;
         }
         if (m_onUserList) m_onUserList(users, m_context);
+    }
+    else if (cmd.substr(0, 13) == "HISTORY_DATA:") {
+        size_t pos1 = 13;
+        size_t pos2 = cmd.find(':', pos1);
+        if (pos2 != std::string::npos) {
+            std::string peer = cmd.substr(pos1, pos2 - pos1);
+            std::string history = cmd.substr(pos2 + 1);
+            if (m_onHistory) m_onHistory(peer, history, m_context);
+        }
     }
     else if (cmd.substr(0, 8) == "PRIVMSG:") {
         if (m_onMsg) m_onMsg(cmd, m_context);

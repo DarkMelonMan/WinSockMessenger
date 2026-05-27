@@ -44,4 +44,8 @@ private:
     std::vector<std::thread> m_clientThreads;
     std::mutex m_threadsMutex;
     void removeFinishedThreads();
+    bool dbSaveMessage(const std::string& sender, const std::string& receiver, const std::string& content);
+    std::string dbGetHistory(const std::string& user1, const std::string& user2);
+    void processMessageCommand(SOCKET clientSocket, const std::string& cmd);
+    void processHistoryCommand(SOCKET clientSocket, const std::string& cmd);
 };

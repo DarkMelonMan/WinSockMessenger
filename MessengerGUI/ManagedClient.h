@@ -1,5 +1,6 @@
 #pragma once
 #include "../NativeNet/client.h"
+#include "EncodingFuncs.h"
 #include <msclr/marshal_cppstd.h>
 #include <gcroot.h>
 
@@ -12,7 +13,11 @@ static void NativeOnUserList(const std::vector<std::string>& users, void* contex
 
 static void NativeOnDisconnect(void* context);
 
+static void NativeOnHistory(const std::string& peer, const std::string& history, void* context);
+
 namespace MessengerGUI {
+
+    public delegate void HistoryReceivedHandler(String^ peer, String^ history);
 
     public ref class ManagedClient {
     public:
@@ -21,13 +26,15 @@ namespace MessengerGUI {
         event Action<String^>^ MessageReceived;
         event Action<array<String^>^>^ UserListUpdated;
         event Action^ Disconnected;
+        event HistoryReceivedHandler^ HistoryReceived;
 
         ManagedClient(String^ serverIp, int port) {
-            std::string ip = msclr::interop::marshal_as<std::string>(serverIp);
+            std::string ip = StringToUtf8(serverIp);
             _handle = GCHandle::Alloc(this);
             void* context = GCHandle::ToIntPtr(_handle).ToPointer();
             nativeClient_ = new Client(ip, port,
-                &NativeOnMessage, &NativeOnUserList, &NativeOnDisconnect, context);
+                &NativeOnMessage, &NativeOnUserList, &NativeOnDisconnect,
+                &NativeOnHistory, context);
         }
 
         ~ManagedClient() {
@@ -42,16 +49,16 @@ namespace MessengerGUI {
         }
 
         bool Login(String^ userName, String^ password) {
-            std::string u = msclr::interop::marshal_as<std::string>(userName);
-            std::string p = msclr::interop::marshal_as<std::string>(password);
+            std::string u = StringToUtf8(userName);
+            std::string p = StringToUtf8(password);
             bool ok = nativeClient_->connect(u, p);
             if (ok) UserName = userName;
             return ok;
         }
 
         bool Register(String^ userName, String^ password) {
-            std::string u = msclr::interop::marshal_as<std::string>(userName);
-            std::string p = msclr::interop::marshal_as<std::string>(password);
+            std::string u = StringToUtf8(userName);
+            std::string p = StringToUtf8(password);
             bool ok = nativeClient_->registerUser(u, p);
             if (ok) UserName = userName;
             return ok;
@@ -68,8 +75,8 @@ namespace MessengerGUI {
 
         void SendMessage(String^ to, String^ text) {
             if (_disposed) return;
-            std::string t = msclr::interop::marshal_as<std::string>(to);
-            std::string msg = msclr::interop::marshal_as<std::string>(text);
+            std::string t = StringToUtf8(to);
+            std::string msg = StringToUtf8(text);
             nativeClient_->sendMessage(t, msg);
         }
 
@@ -78,15 +85,24 @@ namespace MessengerGUI {
             nativeClient_->requestUserList();
         }
 
+        void RequestHistory(String^ peer) {
+            if (_disposed) return;
+            std::string p = StringToUtf8(peer);
+            nativeClient_->requestHistory(p);
+        }
+
     internal:
         void RaiseMessageReceived(String^ msg) {
-            if (!_disposed) MessageReceived(msg);
+            if (!_disposed) MessageReceived(msg); 
         }
         void RaiseUserListUpdated(array<String^>^ users) {
             if (!_disposed) UserListUpdated(users);
         }
         void RaiseDisconnected() {
             if (!_disposed) Disconnected();
+        }
+        void RaiseHistoryReceived(String^ peer, String^ history) {
+            if (!_disposed) HistoryReceived(peer, history);
         }
 
     private:
@@ -105,7 +121,7 @@ namespace MessengerGUI {
 static void NativeOnMessage(const std::string& msg, void* context) {
     GCHandle handle = GCHandle::FromIntPtr(IntPtr(context));
     MessengerGUI::ManagedClient^ self = safe_cast<MessengerGUI::ManagedClient^>(handle.Target);
-    self->RaiseMessageReceived(msclr::interop::marshal_as<String^>(msg));
+    self->RaiseMessageReceived(Utf8ToString(msg));
 }
 
 static void NativeOnUserList(const std::vector<std::string>& users, void* context) {
@@ -113,7 +129,7 @@ static void NativeOnUserList(const std::vector<std::string>& users, void* contex
     MessengerGUI::ManagedClient^ self = safe_cast<MessengerGUI::ManagedClient^>(handle.Target);
     array<String^>^ arr = gcnew array<String^>(static_cast<int>(users.size()));
     for (size_t i = 0; i < users.size(); ++i)
-        arr[i] = msclr::interop::marshal_as<String^>(users[i]);
+        arr[i] = Utf8ToString(users[i]);
     self->RaiseUserListUpdated(arr);
 }
 
@@ -121,4 +137,10 @@ static void NativeOnDisconnect(void* context) {
     GCHandle handle = GCHandle::FromIntPtr(IntPtr(context));
     MessengerGUI::ManagedClient^ self = safe_cast<MessengerGUI::ManagedClient^>(handle.Target);
     self->RaiseDisconnected();
+}
+
+static void NativeOnHistory(const std::string& peer, const std::string& history, void* context) {
+    GCHandle handle = GCHandle::FromIntPtr(IntPtr(context));
+    MessengerGUI::ManagedClient^ self = safe_cast<MessengerGUI::ManagedClient^>(handle.Target);
+    self->RaiseHistoryReceived(Utf8ToString(peer), Utf8ToString(history));
 }

@@ -146,6 +146,7 @@
     <ClInclude Include="ConnectForm.h">
       <FileType>CppForm</FileType>
     </ClInclude>
+    <ClInclude Include="EncodingFuncs.h" />
     <ClInclude Include="ManagedClient.h" />
     <ClInclude Include="ManagedServer.h" />
     <ClInclude Include="LoginForm.h">

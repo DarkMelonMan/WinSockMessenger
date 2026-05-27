@@ -9,12 +9,13 @@
 typedef void (*MessageCallback)(const std::string& msg, void* context);
 typedef void (*UserListCallback)(const std::vector<std::string>& users, void* context);
 typedef void (*VoidCallback)(void* context);
+typedef void (*HistoryCallback)(const std::string& peer, const std::string& history, void* context);
 
 class Client {
 public:
     Client(const std::string& serverIp, int port,
-        MessageCallback onMsg, UserListCallback onUserList, VoidCallback onDisconnect,
-        void* context);
+        MessageCallback onMsg, UserListCallback onUserList, VoidCallback onDisconnect, 
+        HistoryCallback onHistory, void* context);
     ~Client();
 
     bool connect(const std::string& userName, const std::string& password);
@@ -22,6 +23,7 @@ public:
     void disconnect();
     void sendMessage(const std::string& to, const std::string& text);
     void requestUserList();
+    void requestHistory(const std::string& peer);
 
 private:
     void receiverThread();
@@ -36,6 +38,7 @@ private:
     MessageCallback m_onMsg;
     UserListCallback m_onUserList;
     VoidCallback m_onDisconnect;
+    HistoryCallback m_onHistory;
     void* m_context;
 
     std::mutex m_sendMutex;

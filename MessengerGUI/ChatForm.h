@@ -23,6 +23,7 @@ namespace MessengerGUI {
             _history->Location = Point(10, 10);
             _history->Size = Drawing::Size(460, 250);
             _history->ReadOnly = true;
+            _history->Font = gcnew Drawing::Font("Arial", 9);
 
             _inputBox = gcnew TextBox();
             _inputBox->Location = Point(10, 270);
@@ -39,6 +40,11 @@ namespace MessengerGUI {
 
             _messageHandler = gcnew Action<String^>(this, &ChatForm::OnMessageReceived);
             _client->MessageReceived += _messageHandler;
+
+            _historyHandler = gcnew HistoryReceivedHandler(this, &ChatForm::OnHistoryReceived);
+            _client->HistoryReceived += _historyHandler;
+            _client->RequestHistory(_peer);
+
             this->FormClosing += gcnew FormClosingEventHandler(this, &ChatForm::OnClosing);
         }
 
@@ -48,6 +54,8 @@ namespace MessengerGUI {
         RichTextBox^ _history;
         TextBox^ _inputBox;
         Action<String^>^ _messageHandler;
+        HistoryReceivedHandler^ _historyHandler;
+        String^ _pendingHistory;
 
         void SendBtn_Click(Object^, EventArgs^) {
             String^ text = _inputBox->Text->Trim();
@@ -58,8 +66,39 @@ namespace MessengerGUI {
             }
         }
 
+        void OnHistoryReceived(String^ peer, String^ history) {
+            if (peer != _peer) return;
+            _pendingHistory = history;
+            if (_history->InvokeRequired) {
+                _history->Invoke(gcnew MethodInvoker(this, &ChatForm::DisplayHistory));
+            }
+            else {
+                DisplayHistory();
+            }
+        }
+
+        void DisplayHistory() {
+            if (String::IsNullOrEmpty(_pendingHistory)) return;
+            _history->Clear();
+            // Разделитель записей \x01
+            array<String^>^ entries = _pendingHistory->Split(L'\x0001');
+            for each (String ^ entry in entries) {
+                if (String::IsNullOrEmpty(entry)) continue;
+                // Поля разделены \x02: sender, content, time
+                array<String^>^ parts = entry->Split(L'\x0002');
+                if (parts->Length == 3) {
+                    String^ sender = parts[0];
+                    if (sender->Equals(_client->UserName))
+                        sender = "Я";
+                    String^ text = parts[1];
+                    String^ time = parts[2];
+                    _history->AppendText(time + " " + sender + ": " + text + "\n");
+                }
+            }
+            _history->ScrollToCaret();
+        }
+
         void OnMessageReceived(String^ msg) {
-            // Маршалинг в UI-поток
             if (_history->InvokeRequired) {
                 _history->Invoke(gcnew Action<String^>(this, &ChatForm::OnMessageReceived), msg);
                 return;
@@ -82,6 +121,7 @@ namespace MessengerGUI {
 
         void OnClosing(Object^, FormClosingEventArgs^ e) {
             _client->MessageReceived -= _messageHandler;
+            _client->HistoryReceived -= _historyHandler;
         }
     };
 }

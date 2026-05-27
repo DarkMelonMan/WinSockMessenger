@@ -1,5 +1,6 @@
 #pragma once
 #include "../NativeNet/server.h"
+#include "EncodingFuncs.h"
 #include <msclr/marshal_cppstd.h>
 #include <gcroot.h>
 #include <vector>
@@ -44,15 +45,18 @@ namespace MessengerGUI {
             if (!_running) return;
             _running = false;
             nativeServer_->stop();
+            delete nativeServer_;
+            nativeServer_ = nullptr;
         }
 
     internal:
         void RaiseLog(String^ msg) {
-            LogMessage(msg);
+            try { LogMessage(msg); }
+            catch (...) {}
         }
-
         void RaiseClientListUpdated(array<String^>^ clients) {
-            ClientListUpdated(clients);
+            try { ClientListUpdated(clients); }
+            catch (...) {}
         }
 
     private:
@@ -68,7 +72,7 @@ namespace MessengerGUI {
 static void NativeServerLog(const std::string& msg, void* context) {
     GCHandle handle = GCHandle::FromIntPtr(IntPtr(context));
     MessengerGUI::ManagedServer^ self = safe_cast<MessengerGUI::ManagedServer^>(handle.Target);
-    self->RaiseLog(msclr::interop::marshal_as<String^>(msg));
+    self->RaiseLog(Utf8ToString(msg));
 }
 
 static void NativeServerClientList(const std::vector<std::string>& clients, void* context) {
@@ -76,6 +80,6 @@ static void NativeServerClientList(const std::vector<std::string>& clients, void
     MessengerGUI::ManagedServer^ self = safe_cast<MessengerGUI::ManagedServer^>(handle.Target);
     array<String^>^ arr = gcnew array<String^>(static_cast<int>(clients.size()));
     for (size_t i = 0; i < clients.size(); ++i)
-        arr[i] = msclr::interop::marshal_as<String^>(clients[i]);
+        arr[i] = Utf8ToString(clients[i]);
     self->RaiseClientListUpdated(arr);
 }
